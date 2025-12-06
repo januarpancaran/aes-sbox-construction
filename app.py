@@ -5,11 +5,9 @@ Main Application View
 import pandas as pd
 import streamlit as st
 
-# Import the components
-from src.components.affine_matrix_explorer import (
-    AffineMatrixExplorer, render_affine_matrix_explorer)
-from src.components.sbox_constructor import (SBoxConstructor,
-                                             render_sbox_constructor)
+from src.pages.affine_matrix_explorer import (AffineMatrixExplorer,
+                                              render_affine_matrix_explorer)
+from src.pages.sbox_constructor import SBoxConstructor, render_sbox_constructor
 
 
 def main():
@@ -139,8 +137,7 @@ def render_home():
 
 def render_sbox_construction():
     """
-    S-box construction page - DEPRECATED
-    This is now handled by render_sbox_constructor()
+    S-box construction page
     """
     render_sbox_constructor()
 
