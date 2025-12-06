@@ -1,16 +1,15 @@
 """
 Main Application View
-Demonstrates how to import and use the Affine Matrix Explorer component
 """
 
-import streamlit as st
 import pandas as pd
+import streamlit as st
 
-# Import the component
+# Import the components
 from src.components.affine_matrix_explorer import (
-    render_affine_matrix_explorer,
-    AffineMatrixExplorer,
-)
+    AffineMatrixExplorer, render_affine_matrix_explorer)
+from src.components.sbox_constructor import (SBoxConstructor,
+                                             render_sbox_constructor)
 
 
 def main():
@@ -57,7 +56,8 @@ def main():
         # Call the imported component
         render_affine_matrix_explorer()
     elif page == "📦 S-box Construction":
-        render_sbox_construction()
+        # Call the S-box constructor component
+        render_sbox_constructor()
     elif page == "🧪 S-box Testing":
         render_sbox_testing()
     elif page == "📊 Results & Comparison":
@@ -139,30 +139,10 @@ def render_home():
 
 def render_sbox_construction():
     """
-    S-box construction page (placeholder)
+    S-box construction page - DEPRECATED
+    This is now handled by render_sbox_constructor()
     """
-    st.title("📦 S-box Construction")
-    st.info(
-        "This section will be implemented next. It will handle the construction of S-boxes using selected affine matrices."
-    )
-
-    # Example of how to use the explorer class programmatically
-    explorer = AffineMatrixExplorer()
-    example_matrices = explorer.get_example_matrices()
-
-    st.subheader("Preview: Available Example Matrices for Construction")
-
-    selected = st.selectbox("Select a matrix:", options=list(example_matrices.keys()))
-
-    matrix = example_matrices[selected]
-    st.write(f"**{selected}**")
-
-    matrix_df = pd.DataFrame(
-        matrix,
-        columns=[f"Col {i}" for i in range(8)],
-        index=[f"Row {i}" for i in range(8)],
-    )
-    st.dataframe(matrix_df, width="stretch")
+    render_sbox_constructor()
 
 
 def render_sbox_testing():
