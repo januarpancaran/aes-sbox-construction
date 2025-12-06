@@ -4,7 +4,7 @@ Based on the paper: "AES S-box modification uses affine matrices exploration"
 
 This module handles the construction of S-boxes using:
 1. Irreducible polynomial (x^8 + x^4 + x^3 + x + 1)
-2. Multiplicative inverse matrix
+2. Multiplicative inverse matrix (computed dynamically)
 3. Affine transformation (affine matrix + 8-bit constant)
 
 Optimized for fast performance with caching and vectorization.
@@ -18,101 +18,61 @@ import streamlit as st
 
 
 @st.cache_data
-def get_precomputed_inverse_table():
+def compute_inverse_table_cached(irreducible_poly: int):
     """
-    Pre-computed multiplicative inverse table for GF(2^8).
-    This is cached to avoid recomputation.
+    Compute and cache multiplicative inverse table for GF(2^8).
+    Uses the irreducible polynomial x^8 + x^4 + x^3 + x + 1.
+
+    This table is computed using Fermat's Little Theorem: a^-1 = a^254 in GF(2^8)
+
+    Args:
+        irreducible_poly: The irreducible polynomial (e.g., 0x11B)
+
+    Returns:
+        16x16 numpy array containing multiplicative inverses (Table 1 from paper)
     """
-    # Using the standard AES S-box multiplicative inverse table
-    return np.array(
-        [
-            [0, 1, 141, 246, 203, 82, 123, 209, 232, 79, 41, 192, 176, 225, 229, 199],
-            [116, 180, 170, 75, 153, 43, 96, 95, 88, 63, 253, 204, 255, 64, 238, 178],
-            [58, 110, 90, 241, 85, 77, 168, 201, 193, 10, 152, 21, 48, 68, 162, 194],
-            [44, 69, 146, 108, 243, 57, 102, 66, 242, 53, 32, 111, 119, 187, 89, 25],
-            [29, 254, 55, 103, 45, 49, 245, 105, 167, 100, 171, 19, 84, 37, 233, 9],
-            [237, 92, 5, 202, 76, 36, 135, 191, 24, 62, 34, 240, 81, 236, 97, 23],
-            [22, 94, 175, 211, 73, 166, 54, 67, 244, 71, 145, 223, 51, 147, 33, 59],
-            [
-                121,
-                183,
-                151,
-                133,
-                16,
-                181,
-                186,
-                60,
-                182,
-                112,
-                208,
-                6,
-                161,
-                250,
-                129,
-                130,
-            ],
-            [
-                131,
-                126,
-                127,
-                128,
-                150,
-                115,
-                190,
-                86,
-                155,
-                158,
-                149,
-                217,
-                247,
-                2,
-                185,
-                164,
-            ],
-            [
-                222,
-                106,
-                50,
-                109,
-                216,
-                138,
-                132,
-                114,
-                42,
-                20,
-                159,
-                136,
-                249,
-                220,
-                137,
-                154,
-            ],
-            [251, 124, 46, 195, 143, 184, 101, 72, 38, 200, 18, 74, 206, 231, 210, 98],
-            [12, 224, 31, 239, 17, 117, 120, 113, 165, 142, 118, 61, 189, 188, 134, 87],
-            [11, 40, 47, 163, 218, 212, 228, 15, 169, 39, 83, 4, 27, 252, 172, 230],
-            [
-                122,
-                7,
-                174,
-                99,
-                197,
-                219,
-                226,
-                234,
-                148,
-                139,
-                196,
-                213,
-                157,
-                248,
-                144,
-                107,
-            ],
-            [177, 13, 214, 235, 198, 14, 207, 173, 8, 78, 215, 227, 93, 80, 30, 179],
-            [91, 35, 56, 52, 104, 70, 3, 140, 221, 156, 125, 160, 205, 26, 65, 28],
-        ],
-        dtype=np.int32,
-    )
+
+    def gf_mult(a, b, poly):
+        """Multiply two numbers in GF(2^8)."""
+        result = 0
+        for _ in range(8):
+            if b & 1:
+                result ^= a
+            high_bit = a & 0x80
+            a <<= 1
+            if high_bit:
+                a ^= poly
+            b >>= 1
+        return result & 0xFF
+
+    def gf_inverse(a, poly):
+        """Calculate multiplicative inverse using a^254 = a^-1 in GF(2^8)."""
+        if a == 0:
+            return 0
+
+        # Use Fermat's Little Theorem: a^-1 = a^(2^8 - 2) = a^254
+        result = 1
+        power = a
+        exponent = 254
+
+        while exponent > 0:
+            if exponent & 1:
+                result = gf_mult(result, power, poly)
+            power = gf_mult(power, power, poly)
+            exponent >>= 1
+
+        return result
+
+    # Generate the 16x16 table
+    table = np.zeros((16, 16), dtype=np.int32)
+
+    for row in range(16):
+        for col in range(16):
+            value = row * 16 + col
+            inverse = gf_inverse(value, irreducible_poly)
+            table[row, col] = inverse
+
+    return table
 
 
 class SBoxConstructor:
@@ -184,12 +144,22 @@ class SBoxConstructor:
     def _get_cached_inverse_table(self) -> np.ndarray:
         """
         Get cached multiplicative inverse table.
-        Uses Streamlit's cache for instant loading.
+        Computed using the irreducible polynomial x^8 + x^4 + x^3 + x + 1.
+
+        Returns:
+            16x16 numpy array containing multiplicative inverses (Table 1 from paper)
+        """
+        return compute_inverse_table_cached(self.irreducible_poly)
+
+    def _generate_mult_inverse_table(self) -> np.ndarray:
+        """
+        Generate the multiplicative inverse table for GF(2^8).
+        This is Table 1 in the paper - computed using the irreducible polynomial.
 
         Returns:
             16x16 numpy array containing multiplicative inverses
         """
-        return get_precomputed_inverse_table()
+        return compute_inverse_table_cached(self.irreducible_poly)
 
     def _generate_mult_inverse_table(self) -> np.ndarray:
         """
@@ -448,11 +418,12 @@ def render_sbox_constructor():
         if construction_method == "Enter First Row (Auto-generate Matrix)":
             st.write("**Step 1: Enter the first row of the affine matrix**")
 
+            # Add a unique key based on method
             input_method = st.radio(
                 "Input method:",
                 ["Binary String", "Decimal Value", "Individual Bits"],
                 horizontal=True,
-                key="first_row_input_method",
+                key="first_row_input_method_auto",
             )
 
             if input_method == "Binary String":
@@ -460,7 +431,8 @@ def render_sbox_constructor():
                     "Enter 8-bit binary string:",
                     value="00000111",
                     max_chars=8,
-                    key="sbox_binary_input",
+                    key="sbox_binary_input_auto",
+                    help="Change this to generate different S-boxes",
                 )
 
                 if len(binary_input) == 8 and all(c in "01" for c in binary_input):
@@ -481,7 +453,8 @@ def render_sbox_constructor():
                     max_value=255,
                     value=7,
                     step=1,
-                    key="sbox_decimal_input",
+                    key="sbox_decimal_input_auto",
+                    help="Change this to generate different S-boxes",
                 )
 
                 binary_str = format(decimal_value, "08b")
@@ -498,21 +471,21 @@ def render_sbox_constructor():
             else:  # Individual Bits
                 st.write("Set each bit:")
                 cols = st.columns(8)
-                bits = []
 
-                if "sbox_bits" not in st.session_state:
-                    st.session_state.sbox_bits = [0, 0, 0, 0, 0, 1, 1, 1]
+                # Initialize with unique key
+                if "sbox_bits_auto" not in st.session_state:
+                    st.session_state.sbox_bits_auto = [0, 0, 0, 0, 0, 1, 1, 1]
 
                 for i, col in enumerate(cols):
                     with col:
-                        st.session_state.sbox_bits[i] = st.selectbox(
+                        st.session_state.sbox_bits_auto[i] = st.selectbox(
                             f"Bit {i}",
                             options=[0, 1],
-                            index=st.session_state.sbox_bits[i],
-                            key=f"sbox_bit_{i}",
+                            index=st.session_state.sbox_bits_auto[i],
+                            key=f"sbox_bit_auto_{i}",
                         )
 
-                first_row = np.array(st.session_state.sbox_bits)
+                first_row = np.array(st.session_state.sbox_bits_auto)
 
                 # Generate matrix
                 affine_matrix = np.zeros((8, 8), dtype=int)
@@ -526,16 +499,25 @@ def render_sbox_constructor():
 
             affine_matrix = np.zeros((8, 8), dtype=int)
 
+            # Default values for each row
+            default_rows = [
+                "00000111",
+                "10000011",
+                "11000001",
+                "11100000",
+                "01110000",
+                "00111000",
+                "00011100",
+                "00001110",
+            ]
+
             for row in range(8):
                 row_input = st.text_input(
                     f"Row {row}:",
-                    value=(
-                        "00000111"
-                        if row == 0
-                        else "10000011" if row == 1 else "11000001"
-                    ),
+                    value=default_rows[row],
                     max_chars=8,
-                    key=f"matrix_row_{row}",
+                    key=f"matrix_row_custom_{row}",
+                    help="Enter 8 binary digits (0 or 1)",
                 )
 
                 if len(row_input) == 8 and all(c in "01" for c in row_input):
@@ -562,7 +544,7 @@ def render_sbox_constructor():
             "Constant input method:",
             ["Use C_AES (Default)", "Custom Constant"],
             horizontal=True,
-            key="constant_method",
+            key="constant_method_choice",
         )
 
         if constant_method == "Use C_AES (Default)":
@@ -575,11 +557,15 @@ def render_sbox_constructor():
                 "Enter 8-bit constant:",
                 value="11000110",
                 max_chars=8,
-                key="constant_input",
+                key="constant_input_custom",
+                help="Change this to use a different constant",
             )
 
             if len(constant_input) == 8 and all(c in "01" for c in constant_input):
                 constant = np.array([int(b) for b in constant_input])
+                st.success(
+                    f"Custom constant = {constant_input} (binary) = {int(constant_input, 2)} (decimal)"
+                )
             else:
                 st.error("Please enter exactly 8 binary digits")
                 constant = constructor.c_aes
@@ -588,15 +574,32 @@ def render_sbox_constructor():
         st.write("---")
 
         if affine_matrix is not None:
-            if st.button("🚀 Construct S-box", type="primary", width="stretch"):
-                # Construct S-box without spinner for speed
+            col1, col2 = st.columns([1, 1])
+
+            with col1:
+                construct_btn = st.button(
+                    "🚀 Construct S-box", type="primary", width="stretch"
+                )
+
+            with col2:
+                if st.button("🔄 Clear S-box", width="stretch"):
+                    if "constructed_sbox" in st.session_state:
+                        del st.session_state.constructed_sbox
+                    if "affine_matrix" in st.session_state:
+                        del st.session_state.affine_matrix
+                    if "constant" in st.session_state:
+                        del st.session_state.constant
+                    st.rerun()
+
+            if construct_btn:
                 # Construct S-box
                 sbox = constructor.construct_sbox(affine_matrix, constant)
 
-                # Store in session state
+                # Store in session state with timestamp to force update
                 st.session_state.constructed_sbox = sbox
-                st.session_state.affine_matrix = affine_matrix
-                st.session_state.constant = constant
+                st.session_state.affine_matrix = affine_matrix.copy()
+                st.session_state.constant = constant.copy()
+                st.session_state.sbox_timestamp = pd.Timestamp.now()
 
                 st.success("✅ S-box constructed successfully!")
                 st.rerun()  # Refresh to show the S-box immediately
@@ -605,6 +608,15 @@ def render_sbox_constructor():
         if hasattr(st.session_state, "constructed_sbox"):
             st.write("---")
             st.subheader("Constructed S-box")
+
+            # Show which matrix was used
+            st.info(
+                f"""
+            **Matrix Used:** First Row = {''.join(map(str, st.session_state.affine_matrix[0]))} (Decimal: {constructor.bits_to_byte(st.session_state.affine_matrix[0])})
+            
+            **Constant Used:** {''.join(map(str, st.session_state.constant))} (Decimal: {constructor.bits_to_byte(st.session_state.constant)})
+            """
+            )
 
             sbox_df = pd.DataFrame(
                 st.session_state.constructed_sbox,
@@ -617,23 +629,42 @@ def render_sbox_constructor():
             # Quick validation
             validation = constructor.validate_sbox(st.session_state.constructed_sbox)
 
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 if validation["balance"]["passes"]:
-                    st.success("✅ Balance criterion: PASSED")
+                    st.success("✅ Balance: PASSED")
                 else:
-                    st.error("❌ Balance criterion: FAILED")
+                    st.error("❌ Balance: FAILED")
 
             with col2:
                 if validation["bijectivity"]["passes"]:
-                    st.success("✅ Bijectivity criterion: PASSED")
+                    st.success("✅ Bijectivity: PASSED")
                 else:
-                    st.error("❌ Bijectivity criterion: FAILED")
+                    st.error("❌ Bijectivity: FAILED")
 
-            if validation["valid"]:
-                st.success("🎉 This is a VALID S-box!")
-            else:
-                st.warning("⚠️ This S-box does not meet all criteria.")
+            with col3:
+                if validation["valid"]:
+                    st.success("✅ VALID S-box")
+                else:
+                    st.warning("⚠️ INVALID")
+
+            # Show some example values
+            with st.expander("🔍 Example Transformations"):
+                st.write("See how specific input values are transformed:")
+
+                col1, col2, col3 = st.columns(3)
+
+                example_inputs = [0, 15, 255]
+                for i, inp in enumerate(example_inputs):
+                    row = inp // 16
+                    col = inp % 16
+                    output = st.session_state.constructed_sbox[row, col]
+
+                    with [col1, col2, col3][i]:
+                        st.metric(
+                            f"Input: {inp} (0x{inp:02X})",
+                            f"Output: {output} (0x{output:02X})",
+                        )
 
     # Tab 2: Multiplicative Inverse Table
     with tab2:
@@ -641,10 +672,10 @@ def render_sbox_constructor():
 
         st.write(
             """
-        This is the multiplicative inverse table generated using the irreducible polynomial 
-        **x^8 + x^4 + x^3 + x + 1**.
+        This is the multiplicative inverse table **computed dynamically** using the irreducible polynomial 
+        **x^8 + x^4 + x^3 + x + 1** (0x11B in hexadecimal).
         
-        This corresponds to **Table 1** in the paper.
+        **Computation Method:** Uses Fermat's Little Theorem: a^-1 = a^254 in GF(2^8)
         """
         )
 
@@ -833,9 +864,11 @@ def render_sbox_constructor():
             )
 
             ext = {
-                "Python": "py",
-                "C": "c",
+                "Python Array": "py",
+                "C Array": "c",
                 "CSV": "csv",
+                "Hex String": "txt",
+                "LaTeX Table": "tex",
             }.get(export_format, "txt")
 
             # Download button
