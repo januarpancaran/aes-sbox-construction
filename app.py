@@ -1,13 +1,16 @@
 """
 Main Application View
+Demonstrates how to import and use the components
 """
 
 import pandas as pd
 import streamlit as st
 
+# Import the components
 from src.pages.affine_matrix_explorer import (AffineMatrixExplorer,
                                               render_affine_matrix_explorer)
 from src.pages.sbox_constructor import SBoxConstructor, render_sbox_constructor
+from src.pages.sbox_tester import SBoxTester, render_sbox_tester
 
 
 def main():
@@ -51,13 +54,11 @@ def main():
     if page == "🏠 Home":
         render_home()
     elif page == "🔍 Affine Matrix Exploration":
-        # Call the imported component
         render_affine_matrix_explorer()
     elif page == "📦 S-box Construction":
-        # Call the S-box constructor component
         render_sbox_constructor()
     elif page == "🧪 S-box Testing":
-        render_sbox_testing()
+        render_sbox_tester()
     elif page == "📊 Results & Comparison":
         render_results()
 
@@ -144,12 +145,9 @@ def render_sbox_construction():
 
 def render_sbox_testing():
     """
-    S-box testing page (placeholder)
+    S-box testing page
     """
-    st.title("🧪 S-box Testing")
-    st.info(
-        "This section will implement the cryptographic strength tests: NL, SAC, BIC-NL, BIC-SAC, LAP, and DAP."
-    )
+    render_sbox_tester()
 
 
 def render_results():
