@@ -88,7 +88,7 @@ def render_home():
     2. **📦 Construct S-boxes** - Build S-boxes using different affine matrices
     3. **🧪 Test S-boxes** - Evaluate S-boxes against cryptographic criteria
     4. **📊 Compare Results** - Compare with AES and other S-boxes
-    5. **🔐 AES Implementation
+    5. **🔐 AES Implementation** - Encrypt/Decrypt using custom S-boxes
     
     ### 🎯 Key Features
     
@@ -97,48 +97,8 @@ def render_home():
     - Cryptographic strength evaluation (NL, SAC, BIC-NL, BIC-SAC, LAP, DAP)
     - Comparison with original AES S-box
     - Interactive visualizations
-    
-    ### 🚀 Getting Started
-    
-    Use the sidebar navigation to explore different sections of the application.
     """
     )
-
-    # Display key metrics from the paper
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric(
-            label="Total Possible Matrices", value="256", delta="2^8 combinations"
-        )
-
-    with col2:
-        st.metric(label="Input Required", value="First Row Only", delta="8 bits")
-
-    with col3:
-        st.metric(label="Matrix Generation", value="Automatic", delta="Circular shift")
-
-    st.markdown("---")
-
-    # Quick access buttons
-    st.subheader("⚡ Quick Access")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        if st.button("🔍 Explore Matrices", width="stretch"):
-            st.session_state.page = "🔍 Affine Matrix Exploration"
-            st.rerun()
-
-    with col2:
-        if st.button("📦 Construct S-box", width="stretch"):
-            st.session_state.page = "📦 S-box Construction"
-            st.rerun()
-
-    with col3:
-        if st.button("🧪 Test S-box", width="stretch"):
-            st.session_state.page = "🧪 S-box Testing"
-            st.rerun()
 
 
 def render_sbox_construction():
