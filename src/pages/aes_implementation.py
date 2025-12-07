@@ -1,13 +1,15 @@
 """
 AES Implementation with Custom S-box
-Simple encrypt/decrypt interface using custom or standard S-boxes
+Complete encrypt/decrypt interface for text and images using custom or standard S-boxes
 """
 
+import io
 import os
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+from PIL import Image
 
 
 # AES Implementation (from GitHub with S-box modification support)
@@ -31,6 +33,18 @@ def pad(plaintext):
     padding_len = 16 - (len(plaintext) % 16)
     padding = bytes([padding_len] * padding_len)
     return plaintext + padding
+
+
+def pad_key(key):
+    """Pads or truncates key to exactly 16 bytes."""
+    key_bytes = key.encode("utf-8") if isinstance(key, str) else key
+    if len(key_bytes) < 16:
+        # Pad with zeros
+        return key_bytes + b"\x00" * (16 - len(key_bytes))
+    elif len(key_bytes) > 16:
+        # Truncate to 16 bytes
+        return key_bytes[:16]
+    return key_bytes
 
 
 def unpad(plaintext):
@@ -501,11 +515,23 @@ def render_aes_implementation():
     """Streamlit component for AES encryption/decryption."""
     st.header("🔐 AES Encryption/Decryption")
 
+    # Mode selection tabs
+    tab1, tab2 = st.tabs(["📝 Text Encryption", "🖼️ Image Encryption"])
+
+    with tab1:
+        render_text_encryption()
+
+    with tab2:
+        render_image_encryption()
+
+
+def render_text_encryption():
+    """Original text encryption interface (extracted from main function)."""
     st.info(
         """
-    **Simple AES-128 Implementation**
+    **Simple AES-128 Text Encryption**
     
-    Encrypt and decrypt messages using standard AES or your custom S-boxes.
+    Encrypt and decrypt text messages using standard AES or your custom S-boxes.
     Uses CBC mode with random IV for security.
     """
     )
@@ -549,15 +575,20 @@ def render_aes_implementation():
 
         # Key input
         encrypt_key = st.text_input(
-            "Encryption Key (16 chars):",
+            "Encryption Key (any length):",
             value="MySecretKey12345",
-            max_chars=16,
-            type="password",
             key="enc_key",
         )
 
-        if len(encrypt_key) != 16:
-            st.error(f"Key must be 16 characters (current: {len(encrypt_key)})")
+        # Show padded key length
+        key_info = f"Key length: {len(encrypt_key)} chars"
+        if len(encrypt_key) < 16:
+            key_info += f" → will be padded to 16 bytes"
+        elif len(encrypt_key) > 16:
+            key_info += f" → will be truncated to 16 bytes"
+        else:
+            key_info += " ✓ (exactly 16 bytes)"
+        st.caption(key_info)
 
         # Message input
         plaintext = st.text_area(
@@ -569,8 +600,8 @@ def render_aes_implementation():
 
         # Encrypt button
         if st.button("🔒 Encrypt", width="stretch", type="primary"):
-            if len(encrypt_key) != 16:
-                st.error("❌ Key must be exactly 16 characters")
+            if not encrypt_key:
+                st.error("❌ Please enter an encryption key")
             elif not plaintext:
                 st.error("❌ Please enter a message")
             else:
@@ -579,7 +610,7 @@ def render_aes_implementation():
                     iv = os.urandom(16)
 
                     # Encrypt
-                    key_bytes = encrypt_key.encode("utf-8")
+                    key_bytes = pad_key(encrypt_key)
                     message_bytes = plaintext.encode("utf-8")
 
                     aes = AES(key_bytes, sbox)
@@ -610,15 +641,20 @@ def render_aes_implementation():
 
         # Key input
         decrypt_key = st.text_input(
-            "Decryption Key (16 chars):",
+            "Decryption Key (any length):",
             value=st.session_state.get("last_key", "MySecretKey12345"),
-            max_chars=16,
-            type="password",
             key="dec_key",
         )
 
-        if len(decrypt_key) != 16:
-            st.error(f"Key must be 16 characters (current: {len(decrypt_key)})")
+        # Show padded key length
+        key_info = f"Key length: {len(decrypt_key)} chars"
+        if len(decrypt_key) < 16:
+            key_info += f" → will be padded to 16 bytes"
+        elif len(decrypt_key) > 16:
+            key_info += f" → will be truncated to 16 bytes"
+        else:
+            key_info += " ✓ (exactly 16 bytes)"
+        st.caption(key_info)
 
         # Ciphertext input
         ciphertext_hex = st.text_area(
@@ -631,8 +667,8 @@ def render_aes_implementation():
 
         # Decrypt button
         if st.button("🔓 Decrypt", width="stretch", type="primary"):
-            if len(decrypt_key) != 16:
-                st.error("❌ Key must be exactly 16 characters")
+            if not decrypt_key:
+                st.error("❌ Please enter a decryption key")
             elif not ciphertext_hex:
                 st.error("❌ Please enter ciphertext")
             else:
@@ -650,7 +686,7 @@ def render_aes_implementation():
                         encrypted_data = ciphertext[16:]
 
                         # Decrypt
-                        key_bytes = decrypt_key.encode("utf-8")
+                        key_bytes = pad_key(decrypt_key)
 
                         aes = AES(key_bytes, sbox)
                         decrypted = aes.decrypt_cbc(encrypted_data, iv)
@@ -682,14 +718,14 @@ def render_aes_implementation():
     # Help section
     st.write("---")
 
-    with st.expander("ℹ️ How to use"):
+    with st.expander("ℹ️ How to use Text Encryption"):
         st.markdown(
             """
         ### 📝 Instructions
         
         **To Encrypt:**
         1. Select an S-box (standard or custom)
-        2. Enter a 16-character encryption key
+        2. Enter an encryption key (any length - will be padded/truncated to 16 bytes)
         3. Type your message
         4. Click "Encrypt"
         5. Copy the hex output for decryption
@@ -698,6 +734,12 @@ def render_aes_implementation():
         1. Use the SAME S-box and key that was used for encryption
         2. Paste the encrypted hex string
         3. Click "Decrypt"
+        
+        **Key Handling:**
+        - Keys shorter than 16 bytes are padded with zeros
+        - Keys longer than 16 bytes are truncated to 16 bytes
+        - For best security, use exactly 16 characters
+        - Example keys: "secret", "MySecretKey12345", "a very long password"
         
         **Security Notes:**
         - The same key and S-box must be used for encryption and decryption
@@ -710,6 +752,310 @@ def render_aes_implementation():
         Key: MySecretKey12345
         Message: Hello World
         ```
+        """
+        )
+
+
+def render_image_encryption():
+    """Image encryption/decryption interface."""
+    st.info(
+        """
+    **AES Image Encryption**
+    
+    Encrypt and decrypt images using standard AES or your custom S-boxes.
+    The entire image data is encrypted while preserving dimensions.
+    """
+    )
+
+    # Select S-box
+    st.subheader("1️⃣ Select S-box")
+
+    sbox_options = ["Standard AES S-box"]
+
+    # Add saved S-boxes
+    if hasattr(st.session_state, "saved_sboxes") and st.session_state.saved_sboxes:
+        sbox_options.extend(list(st.session_state.saved_sboxes.keys()))
+
+    # Add current S-box
+    if hasattr(st.session_state, "constructed_sbox"):
+        current_name = st.session_state.get("sbox_name", "Current S-box")
+        if current_name not in sbox_options:
+            sbox_options.insert(1, current_name)
+
+    selected_sbox = st.selectbox("Choose S-box:", options=sbox_options, key="img_sbox")
+
+    # Get the S-box
+    if selected_sbox == "Standard AES S-box":
+        sbox = None
+        st.success("✅ Using standard AES S-box")
+    elif selected_sbox == st.session_state.get("sbox_name", "Current S-box"):
+        sbox = st.session_state.constructed_sbox
+        st.success(f"✅ Using: {selected_sbox}")
+    else:
+        sbox = st.session_state.saved_sboxes[selected_sbox]["sbox"]
+        st.success(f"✅ Using: {selected_sbox}")
+
+    st.write("---")
+
+    # Two columns for encrypt and decrypt
+    col1, col2 = st.columns(2)
+
+    # ENCRYPT COLUMN
+    with col1:
+        st.subheader("🔒 Encrypt Image")
+
+        # Key input
+        encrypt_key = st.text_input(
+            "Encryption Key (any length):",
+            value="MySecretKey12345",
+            key="img_enc_key",
+        )
+
+        # Show padded key length
+        key_info = f"Key length: {len(encrypt_key)} chars"
+        if len(encrypt_key) < 16:
+            key_info += f" → will be padded to 16 bytes"
+        elif len(encrypt_key) > 16:
+            key_info += f" → will be truncated to 16 bytes"
+        else:
+            key_info += " ✓ (exactly 16 bytes)"
+        st.caption(key_info)
+
+        # Image upload
+        uploaded_file = st.file_uploader(
+            "Upload image to encrypt:",
+            type=["png", "jpg", "jpeg", "bmp"],
+            key="img_upload",
+        )
+
+        if uploaded_file:
+            # Display original image
+            image = Image.open(uploaded_file)
+            st.image(image, caption="Original Image", width="stretch")
+
+            # Image info
+            st.caption(f"Size: {image.size[0]}×{image.size[1]} | Mode: {image.mode}")
+
+        # Encrypt button
+        if st.button("🔒 Encrypt Image", type="primary", width="stretch"):
+            if not encrypt_key:
+                st.error("❌ Please enter an encryption key")
+            elif not uploaded_file:
+                st.error("❌ Please upload an image")
+            else:
+                try:
+                    with st.spinner("Encrypting image..."):
+                        # Load image
+                        image = Image.open(uploaded_file)
+
+                        # Convert to RGB if necessary
+                        if image.mode != "RGB":
+                            image = image.convert("RGB")
+
+                        # Get image data
+                        img_array = np.array(image)
+                        original_shape = img_array.shape
+
+                        # Flatten image data
+                        img_bytes = img_array.tobytes()
+
+                        # Generate random IV
+                        iv = os.urandom(16)
+
+                        # Encrypt
+                        key_bytes = pad_key(encrypt_key)
+                        aes = AES(key_bytes, sbox)
+                        encrypted_data = aes.encrypt_cbc(img_bytes, iv)
+
+                        # Store metadata and encrypted data
+                        metadata = {
+                            "shape": original_shape,
+                            "iv": iv,
+                            "encrypted": encrypted_data,
+                        }
+
+                        st.session_state.encrypted_image = metadata
+                        st.session_state.img_enc_key_used = encrypt_key
+
+                        # Create encrypted image visualization (noise)
+                        encrypted_array = np.frombuffer(
+                            encrypted_data[: original_shape[0] * original_shape[1] * 3],
+                            dtype=np.uint8,
+                        ).reshape(original_shape)
+                        encrypted_img = Image.fromarray(encrypted_array, "RGB")
+
+                        st.success("✅ Image encrypted successfully!")
+                        st.image(
+                            encrypted_img,
+                            caption="Encrypted Image (Visual)",
+                            width="stretch",
+                        )
+
+                        # Stats
+                        col_a, col_b = st.columns(2)
+                        col_a.metric("Original Size", f"{len(img_bytes)} bytes")
+                        col_b.metric("Encrypted Size", f"{len(encrypted_data)} bytes")
+
+                        # Download button
+                        output = io.BytesIO()
+                        np.savez_compressed(
+                            output, shape=original_shape, iv=iv, data=encrypted_data
+                        )
+                        output.seek(0)
+
+                        st.download_button(
+                            label="💾 Download Encrypted Image Data",
+                            data=output,
+                            file_name="encrypted_image.npz",
+                            mime="application/octet-stream",
+                        )
+
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+
+    # DECRYPT COLUMN
+    with col2:
+        st.subheader("🔓 Decrypt Image")
+
+        # Key input
+        decrypt_key = st.text_input(
+            "Decryption Key (any length):",
+            value=st.session_state.get("img_enc_key_used", "MySecretKey12345"),
+            key="img_dec_key",
+        )
+
+        # Show padded key length
+        key_info = f"Key length: {len(decrypt_key)} chars"
+        if len(decrypt_key) < 16:
+            key_info += f" → will be padded to 16 bytes"
+        elif len(decrypt_key) > 16:
+            key_info += f" → will be truncated to 16 bytes"
+        else:
+            key_info += " ✓ (exactly 16 bytes)"
+        st.caption(key_info)
+
+        # File upload or use last encrypted
+        decrypt_option = st.radio(
+            "Choose source:",
+            ["Use last encrypted image", "Upload encrypted file"],
+            key="decrypt_source",
+        )
+
+        encrypted_upload = None
+        if decrypt_option == "Upload encrypted file":
+            encrypted_upload = st.file_uploader(
+                "Upload encrypted image data (.npz):",
+                type=["npz"],
+                key="enc_img_upload",
+            )
+
+        # Decrypt button
+        if st.button("🔓 Decrypt Image", type="primary", width="stretch"):
+            if not decrypt_key:
+                st.error("❌ Please enter a decryption key")
+            else:
+                try:
+                    with st.spinner("Decrypting image..."):
+                        # Get encrypted data
+                        if decrypt_option == "Use last encrypted image":
+                            if not hasattr(st.session_state, "encrypted_image"):
+                                st.error(
+                                    "❌ No encrypted image available. Encrypt an image first."
+                                )
+                                st.stop()
+                            metadata = st.session_state.encrypted_image
+                            original_shape = metadata["shape"]
+                            iv = metadata["iv"]
+                            encrypted_data = metadata["encrypted"]
+                        else:
+                            if not encrypted_upload:
+                                st.error("❌ Please upload an encrypted file")
+                                st.stop()
+
+                            # Load from file
+                            data = np.load(encrypted_upload)
+                            original_shape = tuple(data["shape"])
+                            iv = bytes(data["iv"])
+                            encrypted_data = bytes(data["data"])
+
+                        # Decrypt
+                        key_bytes = pad_key(decrypt_key)
+                        aes = AES(key_bytes, sbox)
+                        decrypted_data = aes.decrypt_cbc(encrypted_data, iv)
+
+                        # Reconstruct image
+                        img_array = np.frombuffer(
+                            decrypted_data[: original_shape[0] * original_shape[1] * 3],
+                            dtype=np.uint8,
+                        ).reshape(original_shape)
+
+                        decrypted_img = Image.fromarray(img_array, "RGB")
+
+                        st.success("✅ Image decrypted successfully!")
+                        st.image(
+                            decrypted_img, caption="Decrypted Image", width="stretch"
+                        )
+
+                        # Download button
+                        output = io.BytesIO()
+                        decrypted_img.save(output, format="PNG")
+                        output.seek(0)
+
+                        st.download_button(
+                            label="💾 Download Decrypted Image",
+                            data=output,
+                            file_name="decrypted_image.png",
+                            mime="image/png",
+                        )
+
+                except Exception as e:
+                    st.error(f"❌ Decryption error: {str(e)}")
+                    st.info(
+                        "Make sure you're using the correct key and S-box that were used for encryption."
+                    )
+
+    # Help section
+    st.write("---")
+
+    with st.expander("ℹ️ How to use Image Encryption"):
+        st.markdown(
+            """
+        ### 📝 Instructions
+        
+        **To Encrypt:**
+        1. Select an S-box (standard or custom)
+        2. Enter an encryption key (any length - will be padded/truncated to 16 bytes)
+        3. Upload an image (PNG, JPG, BMP)
+        4. Click "Encrypt Image"
+        5. Download the encrypted data file (.npz) to save it
+        
+        **To Decrypt:**
+        1. Use the SAME S-box and key that was used for encryption
+        2. Either use the last encrypted image or upload an encrypted .npz file
+        3. Click "Decrypt Image"
+        4. Download the decrypted image if desired
+        
+        **Key Handling:**
+        - Keys shorter than 16 bytes are padded with zeros
+        - Keys longer than 16 bytes are truncated to 16 bytes
+        - For best security, use exactly 16 characters
+        - Example keys: "secret", "MySecretKey12345", "a very long password"
+        
+        **Security Notes:**
+        - The encrypted image appears as random noise
+        - The entire pixel data is encrypted using AES-CBC
+        - Image dimensions and format are preserved
+        - The .npz file contains the encrypted data, IV, and shape information
+        - Anyone with the key and S-box can decrypt the image
+        
+        **Testing Custom S-boxes:**
+        - This is perfect for testing your custom S-boxes from the paper
+        - Compare encryption quality using histogram analysis
+        - The encrypted image should look completely random
+        
+        **Performance:**
+        - Larger images take longer to encrypt/decrypt
+        - Typical time: < 5 seconds for 512×512 images
         """
         )
 
