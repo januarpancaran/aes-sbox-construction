@@ -1,14 +1,14 @@
 """
 Main Application View
-Demonstrates how to import and use the components
 """
 
 import pandas as pd
 import streamlit as st
 
-# Import the components
 from src.pages.affine_matrix_explorer import (AffineMatrixExplorer,
                                               render_affine_matrix_explorer)
+from src.pages.results_comparison import (ResultsManager,
+                                          render_results_comparison)
 from src.pages.sbox_constructor import SBoxConstructor, render_sbox_constructor
 from src.pages.sbox_tester import SBoxTester, render_sbox_tester
 
@@ -152,12 +152,9 @@ def render_sbox_testing():
 
 def render_results():
     """
-    Results and comparison page (placeholder)
+    Results and comparison page
     """
-    st.title("📊 Results & Comparison")
-    st.info(
-        "This section will display comparisons between constructed S-boxes, AES S-box, and results from previous studies."
-    )
+    render_results_comparison()
 
 
 if __name__ == "__main__":
