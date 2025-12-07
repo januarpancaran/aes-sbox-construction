@@ -5,6 +5,7 @@ Main Application View
 import pandas as pd
 import streamlit as st
 
+from src.pages.aes_implementation import render_aes_implementation
 from src.pages.affine_matrix_explorer import (AffineMatrixExplorer,
                                               render_affine_matrix_explorer)
 from src.pages.results_comparison import (ResultsManager,
@@ -36,6 +37,7 @@ def main():
             "📦 S-box Construction",
             "🧪 S-box Testing",
             "📊 Results & Comparison",
+            "🔐 AES Implementation",
         ],
     )
 
@@ -61,6 +63,8 @@ def main():
         render_sbox_tester()
     elif page == "📊 Results & Comparison":
         render_results()
+    elif page == "🔐 AES Implementation":
+        render_aes_implementation()
 
 
 def render_home():
@@ -84,6 +88,7 @@ def render_home():
     2. **📦 Construct S-boxes** - Build S-boxes using different affine matrices
     3. **🧪 Test S-boxes** - Evaluate S-boxes against cryptographic criteria
     4. **📊 Compare Results** - Compare with AES and other S-boxes
+    5. **🔐 AES Implementation
     
     ### 🎯 Key Features
     
