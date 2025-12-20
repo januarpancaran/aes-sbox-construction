@@ -3,13 +3,14 @@ AES Implementation with Custom S-box
 Complete encrypt/decrypt interface for text and images using custom or standard S-boxes
 """
 
-import io
 import os
+import io
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 from PIL import Image
+import matplotlib.pyplot as plt
 
 
 # AES Implementation (from GitHub with S-box modification support)
@@ -516,13 +517,18 @@ def render_aes_implementation():
     st.header("🔐 AES Encryption/Decryption")
 
     # Mode selection tabs
-    tab1, tab2 = st.tabs(["📝 Text Encryption", "🖼️ Image Encryption"])
+    tab1, tab2, tab3 = st.tabs(
+        ["📝 Text Encryption", "🖼️ Image Encryption", "📊 Image Analysis"]
+    )
 
     with tab1:
         render_text_encryption()
 
     with tab2:
         render_image_encryption()
+
+    with tab3:
+        render_image_analysis()
 
 
 def render_text_encryption():
@@ -993,7 +999,9 @@ def render_image_encryption():
 
                         st.success("✅ Image decrypted successfully!")
                         st.image(
-                            decrypted_img, caption="Decrypted Image", width="stretch"
+                            decrypted_img,
+                            caption="Decrypted Image",
+                            width="stretch",
                         )
 
                         # Download button
@@ -1056,6 +1064,510 @@ def render_image_encryption():
         **Performance:**
         - Larger images take longer to encrypt/decrypt
         - Typical time: < 5 seconds for 512×512 images
+        """
+        )
+
+
+def calculate_entropy(image_data):
+    """
+    Calculate entropy of image data.
+    H(m) = Σ P(m_i) * log2(1/P(m_i))
+
+    Ideal value: 8.0 for perfect randomness
+    """
+    # Flatten if multi-channel
+    if len(image_data.shape) == 3:
+        data = image_data.flatten()
+    else:
+        data = image_data.flatten()
+
+    # Calculate histogram
+    hist, _ = np.histogram(data, bins=256, range=(0, 256))
+
+    # Calculate probabilities
+    probs = hist / float(np.sum(hist))
+
+    # Remove zero probabilities
+    probs = probs[probs > 0]
+
+    # Calculate entropy
+    entropy = -np.sum(probs * np.log2(probs))
+
+    return entropy
+
+
+def calculate_npcr(image1, image2):
+    """
+    Calculate Number of Pixels Change Rate (NPCR).
+    NPCR = (Σ D(i,j) / (M*N)) * 100%
+
+    Where D(i,j) = 0 if C1(i,j) = C2(i,j), else 1
+
+    Ideal value: 99.6094% for perfect sensitivity
+    """
+    if image1.shape != image2.shape:
+        raise ValueError("Images must have the same dimensions")
+
+    # Compare pixels
+    diff = (image1 != image2).astype(int)
+
+    # Calculate NPCR
+    npcr = (np.sum(diff) / diff.size) * 100.0
+
+    return npcr
+
+
+def calculate_uaci(image1, image2):
+    """
+    Calculate Unified Average Changing Intensity (UACI).
+    UACI = (1/(M*N)) * Σ |C1(i,j) - C2(i,j)| / 255 * 100%
+
+    Ideal value: 33.4635% for 8-bit images
+    """
+    if image1.shape != image2.shape:
+        raise ValueError("Images must have the same dimensions")
+
+    # Calculate absolute difference
+    diff = np.abs(image1.astype(float) - image2.astype(float))
+
+    # Calculate UACI
+    uaci = (np.sum(diff) / (diff.size * 255.0)) * 100.0
+
+    return uaci
+
+
+def plot_histogram(image_data, title="Histogram"):
+    """
+    Plot histogram of image data.
+    """
+    fig, ax = plt.subplots(figsize=(10, 4))
+
+    if len(image_data.shape) == 3:
+        # Color image - plot R, G, B separately
+        colors = ["red", "green", "blue"]
+        for i, color in enumerate(colors):
+            hist, bins = np.histogram(
+                image_data[:, :, i].flatten(), bins=256, range=(0, 256)
+            )
+            ax.plot(bins[:-1], hist, color=color, alpha=0.7, label=color.upper())
+        ax.legend()
+    else:
+        # Grayscale image
+        hist, bins = np.histogram(image_data.flatten(), bins=256, range=(0, 256))
+        ax.bar(bins[:-1], hist, width=1, color="gray", alpha=0.7)
+
+    ax.set_xlabel("Pixel Value")
+    ax.set_ylabel("Frequency")
+    ax.set_title(title)
+    ax.grid(alpha=0.3)
+
+    return fig
+
+
+def render_image_analysis():
+    """
+    Image encryption analysis interface based on the paper.
+    Implements: Histogram Analysis, Entropy Test, NPCR Test
+    """
+    st.info(
+        """
+    **Image Encryption Analysis**
+    
+    Test encrypted images using metrics from the paper:
+    - **Histogram Analysis**: Visual distribution of pixel values
+    - **Entropy Test**: Measure randomness (ideal: 8.0)
+    - **NPCR Test**: Sensitivity to key/plaintext changes (ideal: 99.6%)
+    - **UACI Test**: Average intensity change (ideal: 33.4%)
+    """
+    )
+
+    # Analysis mode selection
+    analysis_mode = st.radio(
+        "Select analysis mode:",
+        ["Single Image Analysis", "Compare Two Images (NPCR/UACI)"],
+        horizontal=True,
+    )
+
+    if analysis_mode == "Single Image Analysis":
+        st.subheader("📊 Single Image Analysis")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.write("**Original Image**")
+            original_file = st.file_uploader(
+                "Upload original image:",
+                type=["png", "jpg", "jpeg", "bmp"],
+                key="analysis_original",
+            )
+
+            if original_file:
+                original_img = Image.open(original_file)
+                if original_img.mode != "RGB":
+                    original_img = original_img.convert("RGB")
+                st.image(original_img, caption="Original", width="stretch")
+
+        with col2:
+            st.write("**Encrypted Image**")
+            encrypted_file = st.file_uploader(
+                "Upload encrypted image (.npz):",
+                type=["npz"],
+                key="analysis_encrypted",
+            )
+
+            if encrypted_file:
+                data = np.load(encrypted_file)
+                encrypted_data = bytes(data["data"])
+                shape = tuple(data["shape"])
+                encrypted_array = np.frombuffer(
+                    encrypted_data[: shape[0] * shape[1] * 3],
+                    dtype=np.uint8,
+                ).reshape(shape)
+                encrypted_img = Image.fromarray(encrypted_array, "RGB")
+                st.image(encrypted_img, caption="Encrypted", width="stretch")
+
+        if st.button("🔬 Analyze Images", type="primary", width="stretch"):
+            if not original_file or not encrypted_file:
+                st.error("❌ Please upload both original and encrypted images")
+            else:
+                with st.spinner("Analyzing images..."):
+                    # Convert to numpy arrays
+                    original_array = np.array(original_img)
+                    # encrypted_array already loaded from .npz above
+
+                    # Check dimensions match
+                    if original_array.shape != encrypted_array.shape:
+                        st.error("❌ Images must have the same dimensions!")
+                        st.stop()
+
+                    # Calculate entropy
+                    original_entropy = calculate_entropy(original_array)
+                    encrypted_entropy = calculate_entropy(encrypted_array)
+
+                    # Results
+                    st.write("---")
+                    st.subheader("📈 Analysis Results")
+
+                    # Entropy metrics
+                    st.write("**Entropy Analysis**")
+                    col1, col2, col3 = st.columns(3)
+
+                    col1.metric("Original Entropy", f"{original_entropy:.4f}")
+                    col2.metric("Encrypted Entropy", f"{encrypted_entropy:.4f}")
+                    col3.metric("Ideal", "8.0000")
+
+                    # Entropy assessment
+                    if encrypted_entropy >= 7.999:
+                        st.success("✅ Excellent entropy! Near perfect randomness.")
+                    elif encrypted_entropy >= 7.990:
+                        st.success("✅ Very good entropy! High randomness.")
+                    elif encrypted_entropy >= 7.950:
+                        st.info("ℹ️ Good entropy. Acceptable randomness.")
+                    else:
+                        st.warning("⚠️ Low entropy. May be predictable.")
+
+                    # Entropy per channel (for color images)
+                    if len(encrypted_array.shape) == 3:
+                        st.write("**Entropy per Channel:**")
+                        col1, col2, col3 = st.columns(3)
+
+                        r_entropy = calculate_entropy(encrypted_array[:, :, 0])
+                        g_entropy = calculate_entropy(encrypted_array[:, :, 1])
+                        b_entropy = calculate_entropy(encrypted_array[:, :, 2])
+
+                        col1.metric("Red Channel", f"{r_entropy:.4f}")
+                        col2.metric("Green Channel", f"{g_entropy:.4f}")
+                        col3.metric("Blue Channel", f"{b_entropy:.4f}")
+
+                    # Histograms
+                    st.write("---")
+                    st.write("**Histogram Analysis**")
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        fig_orig = plot_histogram(
+                            original_array, "Original Image Histogram"
+                        )
+                        st.pyplot(fig_orig)
+                        plt.close()
+                        st.caption("Original image shows non-uniform distribution")
+
+                    with col2:
+                        fig_enc = plot_histogram(
+                            encrypted_array, "Encrypted Image Histogram"
+                        )
+                        st.pyplot(fig_enc)
+                        plt.close()
+
+                        # Check histogram uniformity
+                        if len(encrypted_array.shape) == 3:
+                            flat_data = encrypted_array.flatten()
+                        else:
+                            flat_data = encrypted_array.flatten()
+
+                        hist, _ = np.histogram(flat_data, bins=256, range=(0, 256))
+                        hist_std = np.std(hist)
+                        hist_mean = np.mean(hist)
+
+                        if hist_std / hist_mean < 0.1:
+                            st.caption("✅ Encrypted histogram is very uniform (flat)")
+                        elif hist_std / hist_mean < 0.2:
+                            st.caption("✅ Encrypted histogram is reasonably uniform")
+                        else:
+                            st.caption("⚠️ Encrypted histogram shows some patterns")
+
+                    # Comparison with paper results
+                    st.write("---")
+                    st.write("**Comparison with Paper Results**")
+
+                    comparison_data = {
+                        "Method": [
+                            "Your Result",
+                            "Paper (woman_blonde)",
+                            "Paper (Best)",
+                            "Ideal",
+                        ],
+                        "Entropy": [
+                            f"{encrypted_entropy:.4f}",
+                            "7.9993",
+                            "7.9994",
+                            "8.0000",
+                        ],
+                        "Status": [
+                            "✅" if encrypted_entropy >= 7.999 else "⚠️",
+                            "✅",
+                            "✅",
+                            "✅",
+                        ],
+                    }
+
+                    st.dataframe(
+                        pd.DataFrame(comparison_data),
+                        width="stretch",
+                        hide_index=True,
+                    )
+
+    else:  # Compare Two Images
+        st.subheader("⚖️ Compare Two Images (NPCR/UACI Test)")
+
+        st.info(
+            """
+        **NPCR Test**: Measures sensitivity to key/plaintext changes.
+        Upload two encrypted versions of the same image (with 1-bit key difference) to test differential attack resistance.
+        """
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.write("**Encrypted Image 1**")
+            image1_file = st.file_uploader(
+                "Upload first encrypted image (.npz):",
+                type=["npz"],
+                key="npcr_image1",
+            )
+
+            if image1_file:
+                data1 = np.load(image1_file)
+                encrypted_data1 = bytes(data1["data"])
+                shape1 = tuple(data1["shape"])
+                array1 = np.frombuffer(
+                    encrypted_data1[: shape1[0] * shape1[1] * 3],
+                    dtype=np.uint8,
+                ).reshape(shape1)
+                img1 = Image.fromarray(array1, "RGB")
+                st.image(img1, caption="Encrypted Image 1", width="stretch")
+
+        with col2:
+            st.write("**Encrypted Image 2**")
+            image2_file = st.file_uploader(
+                "Upload second encrypted image (.npz):",
+                type=["npz"],
+                key="npcr_image2",
+            )
+
+            if image2_file:
+                data2 = np.load(image2_file)
+                encrypted_data2 = bytes(data2["data"])
+                shape2 = tuple(data2["shape"])
+                array2 = np.frombuffer(
+                    encrypted_data2[: shape2[0] * shape2[1] * 3],
+                    dtype=np.uint8,
+                ).reshape(shape2)
+                img2 = Image.fromarray(array2, "RGB")
+                st.image(img2, caption="Encrypted Image 2", width="stretch")
+
+        if st.button("📊 Calculate NPCR & UACI", type="primary", width="stretch"):
+            if not image1_file or not image2_file:
+                st.error("❌ Please upload both encrypted images")
+            else:
+                with st.spinner("Calculating metrics..."):
+                    # Arrays already loaded from .npz files above
+
+                    # Check dimensions match
+                    if array1.shape != array2.shape:
+                        st.error("❌ Images must have the same dimensions!")
+                        st.stop()
+
+                    # Calculate NPCR and UACI
+                    npcr = calculate_npcr(array1, array2)
+                    uaci = calculate_uaci(array1, array2)
+
+                    # Results
+                    st.write("---")
+                    st.subheader("📊 Differential Analysis Results")
+
+                    col1, col2, col3 = st.columns(3)
+
+                    col1.metric("NPCR", f"{npcr:.4f}%")
+                    col2.metric("UACI", f"{uaci:.4f}%")
+                    col3.metric("Image Size", f"{array1.shape[0]}×{array1.shape[1]}")
+
+                    # NPCR assessment
+                    st.write("**NPCR Analysis:**")
+                    if npcr >= 99.60:
+                        st.success(
+                            "✅ Excellent NPCR! Strong resistance to differential attacks."
+                        )
+                    elif npcr >= 99.50:
+                        st.info("ℹ️ Good NPCR. Acceptable differential resistance.")
+                    else:
+                        st.warning(
+                            "⚠️ Low NPCR. May be vulnerable to differential attacks."
+                        )
+
+                    # UACI assessment
+                    st.write("**UACI Analysis:**")
+                    uaci_dev = abs(uaci - 33.4635)
+                    if uaci_dev <= 0.5:
+                        st.success(f"✅ Excellent UACI! Deviation: {uaci_dev:.4f}%")
+                    elif uaci_dev <= 1.0:
+                        st.info(f"ℹ️ Good UACI. Deviation: {uaci_dev:.4f}%")
+                    else:
+                        st.warning(f"⚠️ UACI deviation: {uaci_dev:.4f}%")
+
+                    # Per-channel analysis for color images
+                    if len(array1.shape) == 3:
+                        st.write("---")
+                        st.write("**Per-Channel Analysis:**")
+
+                        channels = ["Red", "Green", "Blue"]
+                        for i, channel in enumerate(channels):
+                            npcr_ch = calculate_npcr(array1[:, :, i], array2[:, :, i])
+                            uaci_ch = calculate_uaci(array1[:, :, i], array2[:, :, i])
+
+                            col1, col2 = st.columns(2)
+                            col1.metric(f"{channel} NPCR", f"{npcr_ch:.4f}%")
+                            col2.metric(f"{channel} UACI", f"{uaci_ch:.4f}%")
+
+                    # Comparison with paper
+                    st.write("---")
+                    st.write("**Comparison with Paper Results**")
+
+                    comparison_data = {
+                        "Method": [
+                            "Your Result",
+                            "Paper (woman_blonde)",
+                            "Paper (Best)",
+                            "Ideal",
+                        ],
+                        "NPCR (%)": [f"{npcr:.4f}", "99.6288", "99.6288", "99.6094"],
+                        "UACI (%)": [f"{uaci:.4f}", "33.4635", "33.4635", "33.4635"],
+                        "Status": ["✅" if npcr >= 99.60 else "⚠️", "✅", "✅", "✅"],
+                    }
+
+                    st.dataframe(
+                        pd.DataFrame(comparison_data),
+                        width="stretch",
+                        hide_index=True,
+                    )
+
+                    # Visual difference
+                    st.write("---")
+                    st.write("**Visual Difference Map**")
+
+                    diff_map = np.abs(
+                        array1.astype(float) - array2.astype(float)
+                    ).astype(np.uint8)
+                    st.image(
+                        diff_map,
+                        caption="Difference Map (lighter = more difference)",
+                        width="stretch",
+                    )
+
+    # Help section
+    st.write("---")
+
+    with st.expander("ℹ️ How to use Image Analysis"):
+        st.markdown(
+            """
+        ### 📝 Single Image Analysis
+        
+        **Purpose**: Evaluate encryption quality of a single encrypted image.
+        
+        **Steps**:
+        1. Upload the original (plaintext) image
+        2. Upload the encrypted (ciphertext) image
+        3. Click "Analyze Images"
+        4. Review entropy and histogram results
+        
+        **What to look for**:
+        - **Entropy near 8.0**: Indicates good randomness
+        - **Flat histogram**: Shows uniform pixel distribution
+        - **Comparison with paper**: Your results vs published results
+        
+        ---
+        
+        ### ⚖️ NPCR/UACI Test
+        
+        **Purpose**: Test sensitivity to key or plaintext changes (differential attack resistance).
+        
+        **Steps**:
+        1. Encrypt the same image twice with keys differing by 1 bit
+        2. Upload both encrypted images
+        3. Click "Calculate NPCR & UACI"
+        4. Review sensitivity metrics
+        
+        **What to look for**:
+        - **NPCR ≥ 99.60%**: Excellent differential sensitivity
+        - **UACI ≈ 33.46%**: Ideal average intensity change
+        - **Per-channel consistency**: All channels should have similar values
+        
+        ---
+        
+        ### 📊 Metrics Explained
+        
+        **Entropy (H)**:
+        - Measures randomness: H = Σ P(m_i) × log₂(1/P(m_i))
+        - Range: 0 to 8 (for 8-bit images)
+        - Ideal: 8.0 (perfect randomness)
+        - Paper results: 7.9994
+        
+        **NPCR (Number of Pixels Change Rate)**:
+        - Measures % of pixels that change
+        - Formula: (Σ D(i,j) / (M×N)) × 100%
+        - Ideal: 99.6094%
+        - Paper results: 99.6288%
+        
+        **UACI (Unified Average Changing Intensity)**:
+        - Measures average intensity change
+        - Formula: (1/(M×N)) × Σ |C1-C2|/255 × 100%
+        - Ideal: 33.4635%
+        - Paper results: 33.4635%
+        
+        ---
+        
+        ### 🎯 Testing Your Custom S-boxes
+        
+        1. Go to "Image Encryption" tab
+        2. Select your custom S-box
+        3. Encrypt an image
+        4. Download the encrypted image
+        5. Come to this tab to analyze it
+        6. Compare your results with paper benchmarks
+        
+        **Pro tip**: Test with standard images (Lena, Cameraman) to compare with literature!
         """
         )
 
