@@ -639,14 +639,6 @@ def render_sbox_tester():
     if not hasattr(st.session_state, "constructed_sbox"):
         st.warning("⚠️ No S-box found! Please construct an S-box first.")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📦 Go to S-box Construction", width="stretch"):
-                st.switch_page("pages/2_📦_S-box_Construction.py")
-
-        with col2:
-            st.info("Or load an example S-box below:")
-
         # Provide example S-box option
         if st.button("📥 Load Example S-box (AES)", width="stretch"):
             # Standard AES S-box

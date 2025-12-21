@@ -187,12 +187,8 @@ def render_results_comparison():
         
         if not has_sbox:
             st.warning("⚠️ No S-box constructed. Please construct an S-box first.")
-            if st.button("📦 Go to S-box Construction"):
-                st.switch_page("pages/2_📦_S-box_Construction.py")
         elif not has_results:
             st.warning("⚠️ S-box not tested yet. Please run tests first.")
-            if st.button("🧪 Go to S-box Testing"):
-                st.switch_page("pages/3_🧪_S-box_Testing.py")
         else:
             st.success("✅ Current S-box and test results available")
             
