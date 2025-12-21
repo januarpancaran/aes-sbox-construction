@@ -635,6 +635,13 @@ def render_sbox_tester():
 
     tester = get_tester()
 
+    # Cache comprehensive test results
+    @st.cache_data
+    def run_comprehensive_test(sbox_tuple):
+        """Run and cache comprehensive test on S-box."""
+        sbox_array = np.array(sbox_tuple)
+        return tester.comprehensive_test(sbox_array)
+
     # Check if S-box exists
     if not hasattr(st.session_state, "constructed_sbox"):
         st.warning("⚠️ No S-box found! Please construct an S-box first.")
@@ -958,7 +965,7 @@ def render_sbox_tester():
 
     # Run comprehensive test
     with st.spinner("Running cryptographic tests..."):
-        results = tester.comprehensive_test(sbox)
+        results = run_comprehensive_test(tuple(sbox.flatten()))
         st.session_state.test_results = results
 
     # Tab 1: Quick Summary
