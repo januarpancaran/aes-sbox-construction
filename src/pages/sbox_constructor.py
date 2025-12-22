@@ -609,14 +609,15 @@ def render_sbox_constructor():
             st.write("---")
             st.subheader("Constructed S-box")
 
-            # Show which matrix was used
-            st.info(
-                f"""
-            **Matrix Used:** First Row = {''.join(map(str, st.session_state.affine_matrix[0]))} (Decimal: {constructor.bits_to_byte(st.session_state.affine_matrix[0])})
-            
-            **Constant Used:** {''.join(map(str, st.session_state.constant))} (Decimal: {constructor.bits_to_byte(st.session_state.constant)})
-            """
-            )
+            # Show which matrix was used (only if affine_matrix and constant are available)
+            if hasattr(st.session_state, "affine_matrix") and hasattr(st.session_state, "constant"):
+                st.info(
+                    f"""
+                **Matrix Used:** First Row = {''.join(map(str, st.session_state.affine_matrix[0]))} (Decimal: {constructor.bits_to_byte(st.session_state.affine_matrix[0])})
+                
+                **Constant Used:** {''.join(map(str, st.session_state.constant))} (Decimal: {constructor.bits_to_byte(st.session_state.constant)})
+                """
+                )
 
             sbox_df = pd.DataFrame(
                 st.session_state.constructed_sbox,
@@ -883,7 +884,8 @@ def render_sbox_constructor():
             st.write("---")
             st.write("**S-box Metadata:**")
 
-            metadata = f"""S-box Construction Details
+            if hasattr(st.session_state, "affine_matrix") and hasattr(st.session_state, "constant"):
+                metadata = f"""S-box Construction Details
 ==========================
 
 Irreducible Polynomial: x^8 + x^4 + x^3 + x + 1 (0x11B)
@@ -902,14 +904,16 @@ Validation Status:
 - Bijectivity: {'PASSED' if constructor.validate_sbox(sbox)['bijectivity']['passes'] else 'FAILED'}
 """
 
-            st.code(metadata, language="text")
+                st.code(metadata, language="text")
 
-            st.download_button(
-                label="📥 Download Metadata",
-                data=metadata,
-                file_name="sbox_metadata.txt",
-                mime="text/plain",
-            )
+                st.download_button(
+                    label="📥 Download Metadata",
+                    data=metadata,
+                    file_name="sbox_metadata.txt",
+                    mime="text/plain",
+                )
+            else:
+                st.warning("⚠️ Affine matrix and constant information not available. Please reconstruct the S-box.")
 
 
 # Main execution for standalone testing
