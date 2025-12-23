@@ -646,10 +646,50 @@ def render_sbox_tester():
     if not hasattr(st.session_state, "constructed_sbox"):
         st.warning("⚠️ No S-box found! Please construct an S-box first.")
 
-        # Provide example S-box option
-        if st.button("📥 Load Example S-box (AES)", width="stretch"):
-            # Standard AES S-box
-            aes_sbox = np.array(
+        # Create tabs for import options
+        import_tab1, import_tab2 = st.tabs(["📤 Import from CSV", "📥 Load Example S-box"])
+        
+        with import_tab1:
+            st.subheader("Import S-box from CSV")
+            st.write("Upload a CSV file exported from the S-box Constructor.")
+            
+            uploaded_file = st.file_uploader(
+                "Choose a CSV file",
+                type=["csv"],
+                key="sbox_csv_upload"
+            )
+            
+            if uploaded_file is not None:
+                try:
+                    import io
+                    # Read CSV file
+                    df = pd.read_csv(uploaded_file, index_col=0)
+                    
+                    # Convert to numpy array
+                    sbox_imported = df.values.astype(int)
+                    
+                    # Validate dimensions
+                    if sbox_imported.shape != (16, 16):
+                        st.error(f"❌ Invalid dimensions: expected (16, 16), got {sbox_imported.shape}")
+                    else:
+                        # Validate values are 0-255
+                        if np.min(sbox_imported) >= 0 and np.max(sbox_imported) <= 255:
+                            st.session_state.constructed_sbox = sbox_imported
+                            st.session_state.sbox_name = uploaded_file.name.replace('.csv', '')
+                            st.success("✅ S-box imported successfully!")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Invalid values: S-box values must be 0-255")
+                except Exception as e:
+                    st.error(f"❌ Error reading CSV: {str(e)}")
+        
+        with import_tab2:
+            st.subheader("Load Example S-box")
+            
+            # Provide example S-box option
+            if st.button("📥 Load Example S-box (AES)", width="stretch"):
+                # Standard AES S-box
+                aes_sbox = np.array(
                 [
                     [
                         0x63,
@@ -940,18 +980,33 @@ def render_sbox_tester():
                         0x16,
                     ],
                 ]
-            )
-            st.session_state.constructed_sbox = aes_sbox
-            st.session_state.sbox_name = "AES S-box"
-            st.rerun()
+                )
+                st.session_state.constructed_sbox = aes_sbox
+                st.session_state.sbox_name = "AES S-box"
+                st.rerun()
 
-        return
+            return
 
     # Get S-box
     sbox = st.session_state.constructed_sbox
     sbox_name = st.session_state.get("sbox_name", "Custom S-box")
 
-    st.success(f"✅ Testing S-box: **{sbox_name}**")
+    # Header with load new S-box button
+    col_header1, col_header2 = st.columns([4, 1])
+    
+    with col_header1:
+        st.success(f"✅ Testing S-box: **{sbox_name}**")
+    
+    with col_header2:
+        if st.button("🔄 Load New S-box", use_container_width=True):
+            # Clear the current S-box to show import tabs again
+            if "constructed_sbox" in st.session_state:
+                del st.session_state.constructed_sbox
+            if "sbox_name" in st.session_state:
+                del st.session_state.sbox_name
+            if "test_results" in st.session_state:
+                del st.session_state.test_results
+            st.rerun()
 
     # Create tabs
     tab1, tab2, tab3, tab4 = st.tabs(
