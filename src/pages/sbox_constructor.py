@@ -728,7 +728,6 @@ def render_sbox_constructor():
             # Overall status
             if validation["valid"]:
                 st.success("## ✅ VALID S-BOX")
-                st.balloons()
             else:
                 st.error("## ❌ INVALID S-BOX")
 
