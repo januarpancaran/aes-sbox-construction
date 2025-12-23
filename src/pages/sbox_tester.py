@@ -647,23 +647,30 @@ def render_sbox_tester():
         st.warning("⚠️ No S-box found! Please construct an S-box first.")
 
         # Create tabs for import options
-        import_tab1, import_tab2 = st.tabs(["📤 Import from CSV", "📥 Load Example S-box"])
+        import_tab1, import_tab2 = st.tabs(["📤 Import from CSV/Excel", "📥 Load Example S-box"])
         
         with import_tab1:
-            st.subheader("Import S-box from CSV")
-            st.write("Upload a CSV file exported from the S-box Constructor.")
+            st.subheader("Import S-box from CSV/Excel")
+            st.write("Upload a CSV or Excel file exported from the S-box Constructor.")
             
             uploaded_file = st.file_uploader(
-                "Choose a CSV file",
-                type=["csv"],
+                "Choose a file (CSV or XLSX)",
+                type=["csv", "xlsx"],
                 key="sbox_csv_upload"
             )
             
             if uploaded_file is not None:
                 try:
                     import io
-                    # Read CSV file
-                    df = pd.read_csv(uploaded_file, index_col=0)
+                    # Determine file type and read accordingly
+                    if uploaded_file.name.endswith('.xlsx'):
+                        # Read Excel file
+                        df = pd.read_excel(uploaded_file, index_col=0)
+                        file_type = "Excel"
+                    else:
+                        # Read CSV file
+                        df = pd.read_csv(uploaded_file, index_col=0)
+                        file_type = "CSV"
                     
                     # Convert to numpy array
                     sbox_imported = df.values.astype(int)
@@ -675,13 +682,13 @@ def render_sbox_tester():
                         # Validate values are 0-255
                         if np.min(sbox_imported) >= 0 and np.max(sbox_imported) <= 255:
                             st.session_state.constructed_sbox = sbox_imported
-                            st.session_state.sbox_name = uploaded_file.name.replace('.csv', '')
-                            st.success("✅ S-box imported successfully!")
+                            st.session_state.sbox_name = uploaded_file.name.rsplit('.', 1)[0]
+                            st.success(f"✅ S-box imported successfully from {file_type}!")
                             st.rerun()
                         else:
                             st.error(f"❌ Invalid values: S-box values must be 0-255")
                 except Exception as e:
-                    st.error(f"❌ Error reading CSV: {str(e)}")
+                    st.error(f"❌ Error reading file: {str(e)}")
         
         with import_tab2:
             st.subheader("Load Example S-box")

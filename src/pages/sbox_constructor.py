@@ -800,7 +800,7 @@ def render_sbox_constructor():
 
             export_format = st.selectbox(
                 "Select format:",
-                ["Python Array", "C Array", "CSV", "Hex String", "LaTeX Table"],
+                ["Python Array", "C Array", "CSV", "XLSX", "Hex String", "LaTeX Table"],
             )
 
             output = ""
@@ -833,6 +833,26 @@ def render_sbox_constructor():
                 for i, row in enumerate(sbox):
                     output += str(i) + "," + ",".join(str(val) for val in row) + "\n"
 
+            elif export_format == "XLSX":
+                # Create DataFrame for Excel export
+                sbox_df = pd.DataFrame(
+                    sbox,
+                    columns=[str(i) for i in range(16)],
+                    index=[str(i) for i in range(16)],
+                )
+                # Convert to Excel bytes
+                import io
+                excel_buffer = io.BytesIO()
+                try:
+                    sbox_df.to_excel(excel_buffer, engine='openpyxl')
+                except ImportError:
+                    try:
+                        sbox_df.to_excel(excel_buffer, engine='xlsxwriter')
+                    except ImportError:
+                        sbox_df.to_excel(excel_buffer)
+                excel_buffer.seek(0)
+                output = excel_buffer.getvalue()
+
             elif export_format == "Hex String":
                 flat = sbox.flatten()
                 output = "".join(f"{val:02X}" for val in flat)
@@ -850,34 +870,47 @@ def render_sbox_constructor():
                     )
                 output += "\\end{tabular}"
 
-            st.code(
-                output,
-                language=(
-                    "python"
-                    if "Python" in export_format
-                    else (
-                        "c"
-                        if "C" in export_format
-                        else "latex" if "LaTeX" in export_format else "text"
-                    )
-                ),
-            )
+            # Display output only if not XLSX (binary format)
+            if export_format != "XLSX":
+                st.code(
+                    output,
+                    language=(
+                        "python"
+                        if "Python" in export_format
+                        else (
+                            "c"
+                            if "C" in export_format
+                            else "latex" if "LaTeX" in export_format else "text"
+                        )
+                    ),
+                )
+            else:
+                st.info("📊 Excel file ready for download")
 
             ext = {
                 "Python Array": "py",
                 "C Array": "c",
                 "CSV": "csv",
+                "XLSX": "xlsx",
                 "Hex String": "txt",
                 "LaTeX Table": "tex",
             }.get(export_format, "txt")
 
             # Download button
-            st.download_button(
-                label="📥 Download",
-                data=output,
-                file_name=f"sbox.{ext}",
-                mime="text/plain",
-            )
+            if export_format == "XLSX":
+                st.download_button(
+                    label="📥 Download",
+                    data=output,
+                    file_name=f"sbox.{ext}",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            else:
+                st.download_button(
+                    label="📥 Download",
+                    data=output,
+                    file_name=f"sbox.{ext}",
+                    mime="text/plain",
+                )
 
             # Also save metadata
             st.write("---")
